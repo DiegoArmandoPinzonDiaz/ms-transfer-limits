@@ -2,7 +2,7 @@
 FROM eclipse-temurin:27-jdk AS build
 WORKDIR /workspace
 COPY .mvn .mvn
-COPY mvnw pom.xml ./
+COPY mvnw pom.xml openapi.yaml ./
 RUN ./mvnw -B -ntp dependency:go-offline
 COPY src src
 RUN ./mvnw -B -ntp -DskipTests -Dspotless.check.skip=true -Djacoco.skip=true package

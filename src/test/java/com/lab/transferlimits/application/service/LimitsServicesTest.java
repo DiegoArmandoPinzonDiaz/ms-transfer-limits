@@ -8,8 +8,8 @@ import com.lab.transferlimits.application.LimitsNotFoundException;
 import com.lab.transferlimits.application.port.in.UpdateLimitUseCase;
 import com.lab.transferlimits.application.port.in.ValidateTransferUseCase;
 import com.lab.transferlimits.domain.Channel;
+import com.lab.transferlimits.domain.ChannelLimits;
 import com.lab.transferlimits.domain.ChannelLimitsStatus;
-import com.lab.transferlimits.domain.InvalidRequestException;
 import com.lab.transferlimits.domain.Money;
 import com.lab.transferlimits.domain.RejectionReason;
 import com.lab.transferlimits.domain.ValidationResult.Rejected;
@@ -43,12 +43,15 @@ class LimitsServicesTest {
   private ChannelLimitsStatus put(String channel, String daily, String perOperation) {
     return update.updateLimit(
         new UpdateLimitUseCase.Command(
-            ACCOUNT, channel, new BigDecimal(daily), new BigDecimal(perOperation)));
+            ACCOUNT,
+            ChannelLimits.of(
+                Channel.parse(channel), new BigDecimal(daily), new BigDecimal(perOperation))));
   }
 
   private void spend(String channel, String amount) {
     validate.validate(
-        new ValidateTransferUseCase.Command(ACCOUNT, channel, new BigDecimal(amount)));
+        new ValidateTransferUseCase.Command(
+            ACCOUNT, Channel.parse(channel), Money.positive(new BigDecimal(amount))));
   }
 
   private static Money money(String value) {
@@ -78,11 +81,8 @@ class LimitsServicesTest {
   }
 
   @Test
-  @DisplayName("AC-13: limites invalidos o canal invalido son peticion invalida")
-  void ac13InvalidLimits() {
-    assertThatThrownBy(() -> put("WEB", "0", "0")).isInstanceOf(InvalidRequestException.class);
-    assertThatThrownBy(() -> put("WEB", "100", "101")).isInstanceOf(InvalidRequestException.class);
-    assertThatThrownBy(() -> put("ATM", "100", "10")).isInstanceOf(InvalidRequestException.class);
+  @DisplayName("AC-10: sin limites configurados la consulta responde no encontrado")
+  void ac10NothingSavedMeansNotFound() {
     assertThatThrownBy(() -> get.getLimits(ACCOUNT)).isInstanceOf(LimitsNotFoundException.class);
   }
 
@@ -99,7 +99,9 @@ class LimitsServicesTest {
     assertThat(status.consumedToday()).isEqualTo(money("1000"));
     assertThat(status.availableToday()).isEqualTo(Money.ZERO);
     var result =
-        validate.validate(new ValidateTransferUseCase.Command(ACCOUNT, "WEB", new BigDecimal("1")));
+        validate.validate(
+            new ValidateTransferUseCase.Command(
+                ACCOUNT, Channel.WEB, Money.positive(BigDecimal.ONE)));
     assertThat(((Rejected) result.outcome()).reason())
         .isEqualTo(RejectionReason.DAILY_LIMIT_EXCEEDED);
   }

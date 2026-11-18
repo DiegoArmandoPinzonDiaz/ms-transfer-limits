@@ -1,0 +1,45 @@
+### Flujo de prueba (VS Code REST Client / IntelliJ HTTP Client). App en docker compose: puerto 8080.
+@base = http://localhost:8080
+@account = ACC-001
+
+### 1. Crear limites MOBILE: diario 1000.00, por operacion 300.00 (AC-12)
+PUT {{base}}/api/v1/accounts/{{account}}/limits/MOBILE
+Content-Type: application/json
+
+{ "dailyLimit": 1000.00, "perOperationLimit": 300.00 }
+
+### 2. Consultar limites (AC-15)
+GET {{base}}/api/v1/accounts/{{account}}/limits
+
+### 3. Transferencia aprobada: 200 (AC-01)
+POST {{base}}/api/v1/accounts/{{account}}/transfer-validations
+Content-Type: application/json
+
+{ "channel": "MOBILE", "amount": 250.50 }
+
+### 4. Rechazada por limite por operacion: 422 problem+json (AC-04)
+POST {{base}}/api/v1/accounts/{{account}}/transfer-validations
+Content-Type: application/json
+
+{ "channel": "MOBILE", "amount": 301.00 }
+
+### 5. Rechazada por acumulado: consume 300 + 300 y luego pide 300 (AC-05)
+POST {{base}}/api/v1/accounts/{{account}}/transfer-validations
+Content-Type: application/json
+
+{ "channel": "MOBILE", "amount": 300.00 }
+
+###
+POST {{base}}/api/v1/accounts/{{account}}/transfer-validations
+Content-Type: application/json
+
+{ "channel": "MOBILE", "amount": 300.00 }
+
+###
+POST {{base}}/api/v1/accounts/{{account}}/transfer-validations
+Content-Type: application/json
+
+{ "channel": "MOBILE", "amount": 300.00 }
+
+### 6. Salud
+GET {{base}}/actuator/health

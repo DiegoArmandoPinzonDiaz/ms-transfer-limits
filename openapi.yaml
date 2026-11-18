@@ -26,7 +26,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AccountLimits'
+                $ref: '#/components/schemas/AccountLimitsResponse'
               example:
                 accountId: ACC-001
                 channels:
@@ -68,7 +68,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChannelLimits'
+                $ref: '#/components/schemas/ChannelLimitsResponse'
               example:
                 channel: MOBILE
                 dailyLimit: 5000.00
@@ -85,9 +85,9 @@ paths:
       operationId: validateTransfer
       summary: Valida una transferencia y, si se aprueba, registra su consumo.
       description: >-
-        Una transferencia que excede un limite es un resultado de negocio (200 con
-        approved=false), no un error. Peticion invalida responde 400; sin limites
-        configurados responde 404.
+        Aprobada responde 200. Una transferencia que excede un limite responde 422
+        (problem+json) con reasonCode y los montos como campos de extension. Peticion
+        invalida responde 400; sin limites configurados responde 404.
       parameters:
         - $ref: '#/components/parameters/AccountId'
       requestBody:
@@ -101,33 +101,43 @@ paths:
               amount: 250.50
       responses:
         '200':
-          description: Resultado de la validacion (aprobada o rechazada).
+          description: Transferencia aprobada; el monto ya quedo sumado al consumo del dia.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransferValidationResult'
-              examples:
-                approved:
-                  value:
-                    approved: true
-                    message: 'Transferencia aprobada. Disponible del dia: 3249.50.'
-                    availableToday: 3249.50
-                rejectedPerOperation:
-                  value:
-                    approved: false
-                    reasonCode: PER_OPERATION_LIMIT_EXCEEDED
-                    message: El monto solicitado 1200.00 excede el limite por operacion de 1000.00.
-                    availableToday: 3500.00
-                rejectedDaily:
-                  value:
-                    approved: false
-                    reasonCode: DAILY_LIMIT_EXCEEDED
-                    message: El monto solicitado 800.00 excede el disponible del dia de 500.00.
-                    availableToday: 500.00
+                $ref: '#/components/schemas/TransferApproval'
+              example:
+                message: 'Transferencia aprobada. Disponible del dia: 3249.50.'
+                availableToday: 3249.50
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          description: Transferencia rechazada por exceder un limite. No consume limite.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/TransferRejectedProblem'
+              examples:
+                perOperation:
+                  value:
+                    type: https://transferlimits.lab.example/problems/transfer-rejected
+                    title: Transferencia rechazada
+                    status: 422
+                    detail: El monto solicitado 1200.00 excede el limite por operacion de 1000.00.
+                    reasonCode: PER_OPERATION_LIMIT_EXCEEDED
+                    requestedAmount: 1200.00
+                    perOperationLimit: 1000.00
+                daily:
+                  value:
+                    type: https://transferlimits.lab.example/problems/transfer-rejected
+                    title: Transferencia rechazada
+                    status: 422
+                    detail: El monto solicitado 800.00 excede el disponible del dia de 500.00.
+                    reasonCode: DAILY_LIMIT_EXCEEDED
+                    requestedAmount: 800.00
+                    availableAmount: 500.00
         '500':
           $ref: '#/components/responses/InternalError'
 components:
@@ -140,15 +150,15 @@ components:
         type: string
       example: ACC-001
   schemas:
-    Channel:
+    ChannelName:
       type: string
       enum: [MOBILE, WEB, BRANCH]
-    ChannelLimits:
+    ChannelLimitsResponse:
       type: object
       required: [channel, dailyLimit, perOperationLimit, consumedToday, availableToday]
       properties:
         channel:
-          $ref: '#/components/schemas/Channel'
+          $ref: '#/components/schemas/ChannelName'
         dailyLimit:
           type: number
         perOperationLimit:
@@ -157,7 +167,7 @@ components:
           type: number
         availableToday:
           type: number
-    AccountLimits:
+    AccountLimitsResponse:
       type: object
       required: [accountId, channels]
       properties:
@@ -166,7 +176,7 @@ components:
         channels:
           type: array
           items:
-            $ref: '#/components/schemas/ChannelLimits'
+            $ref: '#/components/schemas/ChannelLimitsResponse'
     UpdateLimitsRequest:
       type: object
       required: [dailyLimit, perOperationLimit]
@@ -187,21 +197,40 @@ components:
         amount:
           type: number
           description: Mayor a 0, maximo 2 decimales.
-    TransferValidationResult:
+    TransferApproval:
       type: object
-      required: [approved, message, availableToday]
+      required: [message, availableToday]
       properties:
-        approved:
-          type: boolean
-        reasonCode:
-          type: string
-          enum: [PER_OPERATION_LIMIT_EXCEEDED, DAILY_LIMIT_EXCEEDED]
-          description: Solo presente cuando approved es false.
         message:
           type: string
         availableToday:
           type: number
-          description: Disponible del dia del canal despues de la validacion.
+          description: Disponible del dia del canal despues de aprobar.
+    TransferRejectedProblem:
+      type: object
+      description: Error RFC 9457 por rechazo de negocio, con campos de extension.
+      required: [type, title, status, detail, reasonCode, requestedAmount]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        reasonCode:
+          type: string
+          enum: [PER_OPERATION_LIMIT_EXCEEDED, DAILY_LIMIT_EXCEEDED]
+        requestedAmount:
+          type: number
+        perOperationLimit:
+          type: number
+          description: Solo con PER_OPERATION_LIMIT_EXCEEDED.
+        availableAmount:
+          type: number
+          description: Solo con DAILY_LIMIT_EXCEEDED.
     ProblemDetails:
       type: object
       description: Error segun RFC 9457.
@@ -226,7 +255,7 @@ components:
           schema:
             $ref: '#/components/schemas/ProblemDetails'
           example:
-            type: https://transferlimits.lab.com/problems/invalid-request
+            type: https://transferlimits.lab.example/problems/invalid-request
             title: Peticion invalida
             status: 400
             detail: El monto debe ser mayor a 0 con maximo 2 decimales.
@@ -237,7 +266,7 @@ components:
           schema:
             $ref: '#/components/schemas/ProblemDetails'
           example:
-            type: https://transferlimits.lab.com/problems/limits-not-found
+            type: https://transferlimits.lab.example/problems/limits-not-found
             title: Limites no encontrados
             status: 404
             detail: No hay limites configurados para la cuenta y canal indicados.
@@ -248,7 +277,7 @@ components:
           schema:
             $ref: '#/components/schemas/ProblemDetails'
           example:
-            type: https://transferlimits.lab.com/problems/internal-error
+            type: https://transferlimits.lab.example/problems/internal-error
             title: Error interno
             status: 500
             detail: Ocurrio un error inesperado.

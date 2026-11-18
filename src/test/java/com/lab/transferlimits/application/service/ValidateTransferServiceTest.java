@@ -9,7 +9,7 @@ import com.lab.transferlimits.application.port.in.UpdateLimitUseCase;
 import com.lab.transferlimits.application.port.in.ValidateTransferUseCase.Command;
 import com.lab.transferlimits.application.port.in.ValidateTransferUseCase.Result;
 import com.lab.transferlimits.domain.Channel;
-import com.lab.transferlimits.domain.InvalidRequestException;
+import com.lab.transferlimits.domain.ChannelLimits;
 import com.lab.transferlimits.domain.Money;
 import com.lab.transferlimits.domain.RejectionReason;
 import com.lab.transferlimits.domain.ValidationResult.Approved;
@@ -22,8 +22,6 @@ import java.time.ZoneOffset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class ValidateTransferServiceTest {
 
@@ -44,12 +42,18 @@ class ValidateTransferServiceTest {
     for (String channel : new String[] {"MOBILE", "WEB"}) {
       update.updateLimit(
           new UpdateLimitUseCase.Command(
-              ACCOUNT, channel, new BigDecimal("1000"), new BigDecimal("300")));
+              ACCOUNT,
+              ChannelLimits.of(
+                  Channel.parse(channel), new BigDecimal("1000"), new BigDecimal("300"))));
     }
   }
 
   private Result validate(String channel, String amount) {
-    return service.validate(new Command(ACCOUNT, channel, new BigDecimal(amount)));
+    return service.validate(command(ACCOUNT, channel, amount));
+  }
+
+  private static Command command(String account, String channel, String amount) {
+    return new Command(account, Channel.parse(channel), Money.positive(new BigDecimal(amount)));
   }
 
   private Money consumed(Channel channel) {
@@ -135,25 +139,10 @@ class ValidateTransferServiceTest {
     assertThat(validate("WEB", "300").outcome()).isEqualTo(new Approved(money("700")));
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = {"0", "-10", "10.001"})
-  @DisplayName("AC-08: monto en cero, negativo o con mas de 2 decimales es peticion invalida")
-  void ac08InvalidAmount(String amount) {
-    assertThatThrownBy(() -> validate("MOBILE", amount))
-        .isInstanceOf(InvalidRequestException.class);
-    assertThat(consumed(Channel.MOBILE)).isEqualTo(Money.ZERO);
-  }
-
-  @Test
-  @DisplayName("AC-09: canal inexistente es peticion invalida")
-  void ac09InvalidChannel() {
-    assertThatThrownBy(() -> validate("ATM", "10")).isInstanceOf(InvalidRequestException.class);
-  }
-
   @Test
   @DisplayName("AC-10: cuenta o canal sin limites configurados responde no encontrado")
   void ac10NoLimitsConfigured() {
-    assertThatThrownBy(() -> service.validate(new Command("OTRA", "MOBILE", new BigDecimal("10"))))
+    assertThatThrownBy(() -> service.validate(command("OTRA", "MOBILE", "10")))
         .isInstanceOf(LimitsNotFoundException.class);
     assertThatThrownBy(() -> validate("BRANCH", "10")).isInstanceOf(LimitsNotFoundException.class);
   }
@@ -167,7 +156,7 @@ class ValidateTransferServiceTest {
     Clock afterMidnight = Clock.fixed(Instant.parse("2026-03-10T06:00:00Z"), ZoneOffset.UTC);
     ValidateTransferService before = new ValidateTransferService(repository, beforeMidnight);
     ValidateTransferService after = new ValidateTransferService(repository, afterMidnight);
-    Command command = new Command(ACCOUNT, "MOBILE", new BigDecimal("300"));
+    Command command = command(ACCOUNT, "MOBILE", "300");
 
     before.validate(command);
     before.validate(command);

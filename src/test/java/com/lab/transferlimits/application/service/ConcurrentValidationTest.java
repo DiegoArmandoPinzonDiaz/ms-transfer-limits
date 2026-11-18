@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.lab.transferlimits.application.InMemoryLimitsRepository;
 import com.lab.transferlimits.application.port.in.UpdateLimitUseCase;
 import com.lab.transferlimits.application.port.in.ValidateTransferUseCase;
+import com.lab.transferlimits.domain.Channel;
+import com.lab.transferlimits.domain.ChannelLimits;
 import com.lab.transferlimits.domain.Money;
 import com.lab.transferlimits.domain.ValidationResult.Approved;
 import java.math.BigDecimal;
@@ -31,7 +33,8 @@ class ConcurrentValidationTest {
     new UpdateLimitService(repository, clock)
         .updateLimit(
             new UpdateLimitUseCase.Command(
-                "ACC-1", "MOBILE", new BigDecimal("1000"), new BigDecimal("100")));
+                "ACC-1",
+                ChannelLimits.of(Channel.MOBILE, new BigDecimal("1000"), new BigDecimal("100"))));
     ValidateTransferService service = new ValidateTransferService(repository, clock);
     int threads = 50;
     CountDownLatch start = new CountDownLatch(1);
@@ -46,7 +49,7 @@ class ConcurrentValidationTest {
                   return service
                           .validate(
                               new ValidateTransferUseCase.Command(
-                                  "ACC-1", "MOBILE", new BigDecimal("100")))
+                                  "ACC-1", Channel.MOBILE, Money.positive(new BigDecimal("100"))))
                           .outcome()
                       instanceof Approved;
                 }));
