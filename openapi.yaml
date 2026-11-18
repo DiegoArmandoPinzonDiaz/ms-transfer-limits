@@ -1,0 +1,8 @@
+openapi: 3.0.3
+info:
+  title: MS-TRANSFER-LIMITS
+  version: 0.0.1
+  description: >-
+    Contrato del microservicio de limites de transferencia. Pendiente: los paths se
+    definen aqui primero (contract-first) al implementar cada endpoint.
+paths: {}

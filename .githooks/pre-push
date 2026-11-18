@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Git hook real: mismo script que el hook de Claude Code. Activar con:
+#   git config core.hooksPath .githooks
+exec bash "$(git rev-parse --show-toplevel)/.claude/hooks/pre-push-check.sh"
