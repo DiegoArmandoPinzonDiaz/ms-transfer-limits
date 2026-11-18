@@ -1,8 +1,254 @@
 openapi: 3.0.3
 info:
   title: MS-TRANSFER-LIMITS
-  version: 0.0.1
+  version: 0.1.0
   description: >-
-    Contrato del microservicio de limites de transferencia. Pendiente: los paths se
-    definen aqui primero (contract-first) al implementar cada endpoint.
-paths: {}
+    Valida si una transferencia cabe en los limites de una cuenta (limite por operacion y
+    limite diario por canal) y administra esos limites. El dia de negocio se calcula en la
+    zona horaria America/Mexico_City. Todos los errores usan application/problem+json (RFC 9457).
+    El endpoint GET /actuator/health lo expone Spring Boot Actuator y no se modela aqui.
+tags:
+  - name: Limits
+    description: Consulta y actualizacion de limites por cuenta y canal.
+  - name: TransferValidations
+    description: Validacion de transferencias contra los limites.
+paths:
+  /api/v1/accounts/{accountId}/limits:
+    get:
+      tags: [Limits]
+      operationId: getAccountLimits
+      summary: Consulta los limites de la cuenta por canal.
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          description: Limites, consumo y disponible de hoy por cada canal configurado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountLimits'
+              example:
+                accountId: ACC-001
+                channels:
+                  - channel: MOBILE
+                    dailyLimit: 5000.00
+                    perOperationLimit: 1000.00
+                    consumedToday: 1500.00
+                    availableToday: 3500.00
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/accounts/{accountId}/limits/{channelId}:
+    put:
+      tags: [Limits]
+      operationId: updateChannelLimits
+      summary: Crea o actualiza los limites de un canal.
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - name: channelId
+          in: path
+          required: true
+          description: Canal. Valores validos MOBILE, WEB, BRANCH; otro valor responde 400.
+          schema:
+            type: string
+          example: MOBILE
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLimitsRequest'
+            example:
+              dailyLimit: 5000.00
+              perOperationLimit: 1000.00
+      responses:
+        '200':
+          description: Limites guardados, con el consumo y disponible de hoy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelLimits'
+              example:
+                channel: MOBILE
+                dailyLimit: 5000.00
+                perOperationLimit: 1000.00
+                consumedToday: 0.00
+                availableToday: 5000.00
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/accounts/{accountId}/transfer-validations:
+    post:
+      tags: [TransferValidations]
+      operationId: validateTransfer
+      summary: Valida una transferencia y, si se aprueba, registra su consumo.
+      description: >-
+        Una transferencia que excede un limite es un resultado de negocio (200 con
+        approved=false), no un error. Peticion invalida responde 400; sin limites
+        configurados responde 404.
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferValidationRequest'
+            example:
+              channel: MOBILE
+              amount: 250.50
+      responses:
+        '200':
+          description: Resultado de la validacion (aprobada o rechazada).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferValidationResult'
+              examples:
+                approved:
+                  value:
+                    approved: true
+                    message: 'Transferencia aprobada. Disponible del dia: 3249.50.'
+                    availableToday: 3249.50
+                rejectedPerOperation:
+                  value:
+                    approved: false
+                    reasonCode: PER_OPERATION_LIMIT_EXCEEDED
+                    message: El monto solicitado 1200.00 excede el limite por operacion de 1000.00.
+                    availableToday: 3500.00
+                rejectedDaily:
+                  value:
+                    approved: false
+                    reasonCode: DAILY_LIMIT_EXCEEDED
+                    message: El monto solicitado 800.00 excede el disponible del dia de 500.00.
+                    availableToday: 500.00
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  parameters:
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema:
+        type: string
+      example: ACC-001
+  schemas:
+    Channel:
+      type: string
+      enum: [MOBILE, WEB, BRANCH]
+    ChannelLimits:
+      type: object
+      required: [channel, dailyLimit, perOperationLimit, consumedToday, availableToday]
+      properties:
+        channel:
+          $ref: '#/components/schemas/Channel'
+        dailyLimit:
+          type: number
+        perOperationLimit:
+          type: number
+        consumedToday:
+          type: number
+        availableToday:
+          type: number
+    AccountLimits:
+      type: object
+      required: [accountId, channels]
+      properties:
+        accountId:
+          type: string
+        channels:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChannelLimits'
+    UpdateLimitsRequest:
+      type: object
+      required: [dailyLimit, perOperationLimit]
+      properties:
+        dailyLimit:
+          type: number
+          description: Mayor a 0, maximo 2 decimales.
+        perOperationLimit:
+          type: number
+          description: Mayor a 0, maximo 2 decimales, no mayor al limite diario.
+    TransferValidationRequest:
+      type: object
+      required: [channel, amount]
+      properties:
+        channel:
+          type: string
+          description: MOBILE, WEB o BRANCH; otro valor responde 400.
+        amount:
+          type: number
+          description: Mayor a 0, maximo 2 decimales.
+    TransferValidationResult:
+      type: object
+      required: [approved, message, availableToday]
+      properties:
+        approved:
+          type: boolean
+        reasonCode:
+          type: string
+          enum: [PER_OPERATION_LIMIT_EXCEEDED, DAILY_LIMIT_EXCEEDED]
+          description: Solo presente cuando approved es false.
+        message:
+          type: string
+        availableToday:
+          type: number
+          description: Disponible del dia del canal despues de la validacion.
+    ProblemDetails:
+      type: object
+      description: Error segun RFC 9457.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+  responses:
+    BadRequest:
+      description: Peticion invalida (monto, canal o limites invalidos).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: https://transferlimits.lab.com/problems/invalid-request
+            title: Peticion invalida
+            status: 400
+            detail: El monto debe ser mayor a 0 con maximo 2 decimales.
+    NotFound:
+      description: La cuenta o el canal no tiene limites configurados.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: https://transferlimits.lab.com/problems/limits-not-found
+            title: Limites no encontrados
+            status: 404
+            detail: No hay limites configurados para la cuenta y canal indicados.
+    InternalError:
+      description: Error interno. No expone detalles internos.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: https://transferlimits.lab.com/problems/internal-error
+            title: Error interno
+            status: 500
+            detail: Ocurrio un error inesperado.

@@ -73,12 +73,52 @@
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
 
+      <!-- Contract-first: genera SOLO interfaces y DTOs desde openapi.yaml. -->
+      <plugin>
+        <groupId>org.openapitools</groupId>
+        <artifactId>openapi-generator-maven-plugin</artifactId>
+        <version>7.27.0</version>
+        <executions>
+          <execution>
+            <id>generate-api</id>
+            <goals>
+              <goal>generate</goal>
+            </goals>
+            <configuration>
+              <inputSpec>${project.basedir}/openapi.yaml</inputSpec>
+              <generatorName>spring</generatorName>
+              <output>${project.build.directory}/generated-sources/openapi</output>
+              <apiPackage>com.lab.transferlimits.infrastructure.adapter.in.web.api</apiPackage>
+              <modelPackage>com.lab.transferlimits.infrastructure.adapter.in.web.model</modelPackage>
+              <generateSupportingFiles>false</generateSupportingFiles>
+              <generateApiTests>false</generateApiTests>
+              <generateModelTests>false</generateModelTests>
+              <configOptions>
+                <interfaceOnly>true</interfaceOnly>
+                <skipDefaultInterface>true</skipDefaultInterface>
+                <useTags>true</useTags>
+                <useSpringBoot4>true</useSpringBoot4>
+                <useJackson3>true</useJackson3>
+                <useBeanValidation>true</useBeanValidation>
+                <openApiNullable>false</openApiNullable>
+                <annotationLibrary>none</annotationLibrary>
+                <documentationProvider>none</documentationProvider>
+                <hideGenerationTimestamp>true</hideGenerationTimestamp>
+              </configOptions>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
       <plugin>
         <groupId>com.diffplug.spotless</groupId>
         <artifactId>spotless-maven-plugin</artifactId>
         <version>${spotless.version}</version>
         <configuration>
           <java>
+            <excludes>
+              <exclude>target/generated-sources/**</exclude>
+            </excludes>
             <googleJavaFormat>
               <version>${google-java-format.version}</version>
               <style>GOOGLE</style>
@@ -129,6 +169,9 @@
         <configuration>
           <excludes>
             <exclude>com/lab/transferlimits/TransferLimitsApplication.class</exclude>
+            <!-- Codigo generado por openapi-generator -->
+            <exclude>com/lab/transferlimits/infrastructure/adapter/in/web/api/**</exclude>
+            <exclude>com/lab/transferlimits/infrastructure/adapter/in/web/model/**</exclude>
           </excludes>
         </configuration>
         <executions>
