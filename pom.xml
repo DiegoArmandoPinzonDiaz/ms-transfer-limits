@@ -96,6 +96,32 @@
         </executions>
       </plugin>
 
+      <!-- Debe ir antes de jacoco:check: falla si no hay archivo de ejecucion (no se salta la regla). -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>3.7.0</version>
+        <executions>
+          <execution>
+            <id>require-jacoco-exec</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <requireFilesExist>
+                  <files>
+                    <file>${project.build.directory}/jacoco.exec</file>
+                  </files>
+                  <message>No existe target/jacoco.exec: no hay pruebas ejecutadas, la cobertura no se puede verificar.</message>
+                </requireFilesExist>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
       <plugin>
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
