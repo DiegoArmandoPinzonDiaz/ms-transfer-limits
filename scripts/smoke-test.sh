@@ -95,22 +95,49 @@ CODE=$(head -1 /tmp/smoke-h.$$ | awk '{print $2}'); CT=$(grep -i '^content-type'
 check_problem "AC-10 cuenta inexistente" 404
 NOT_FOUND_TRACE=$(trace_of)
 
-# 11. Jaeger: servicio, traceId del problem+json y cuenta enmascarada (esperar al exportador por lotes)
+# 11. Jaeger (API JSON interna). Se reintenta ~30 s: el exportador OTLP envia por lotes.
 echo "Esperando trazas en Jaeger ($JAEGER)..."
-FOUND_SERVICE=0; FOUND_TRACE=0
-for _ in $(seq 1 30); do
-  curl -fs "$JAEGER/api/services" | grep -q 'ms-transfer-limits' && FOUND_SERVICE=1
-  [ -n "$TRACE_ID" ] && curl -fs "$JAEGER/api/traces/$TRACE_ID" | grep -q "\"traceID\":\"$TRACE_ID\"" && FOUND_TRACE=1
-  [ "$FOUND_SERVICE" = 1 ] && [ "$FOUND_TRACE" = 1 ] && break
-  sleep 3
-done
-[ "$FOUND_SERVICE" = 1 ] && echo "ok   Jaeger tiene trazas del servicio ms-transfer-limits" || fail "Jaeger no tiene el servicio ms-transfer-limits"
-[ "$FOUND_TRACE" = 1 ] && echo "ok   el traceId del problem+json ($TRACE_ID) existe en Jaeger" || fail "Jaeger no tiene el traceId $TRACE_ID del problem+json"
+printf '%s\n%s\n' "$TRACE_ID" "${NOT_FOUND_TRACE:-}" > /tmp/smoke-last-trace-id   # para diagnostico en CI
+JOUT=""
+fail_j() { echo "FAIL $1"; echo "     Jaeger respondio: ${JOUT:0:600}"; FAILS=$((FAILS + 1)); }
 
-TRACES=$(curl -fs "$JAEGER/api/traces?service=ms-transfer-limits&limit=100")
-echo "$TRACES" | grep -q 'transfer.validate' && echo "ok   span propio transfer.validate presente" || fail "no hay span transfer.validate"
-echo "$TRACES" | grep -q "\"\\*\\*\\*\\*${ACCOUNT: -4}\"" && echo "ok   accountId enmascarado en el span (****${ACCOUNT: -4})" || fail "no se ve la cuenta enmascarada ****${ACCOUNT: -4}"
-if echo "$TRACES" | grep -q "$ACCOUNT"; then fail "el accountId COMPLETO aparece en las trazas de Jaeger"; else echo "ok   el accountId completo no aparece en las trazas"; fi
+SERVICES=""; TRACE_JSON=""
+for _ in $(seq 1 15); do
+  SERVICES=$(curl -s -m 10 "$JAEGER/api/services")
+  [ -n "$TRACE_ID" ] && TRACE_JSON=$(curl -s -m 10 "$JAEGER/api/traces/$TRACE_ID")
+  if echo "$SERVICES" | grep -q 'ms-transfer-limits' && echo "$TRACE_JSON" | grep -q '"operationName":"transfer.validate"'; then break; fi
+  sleep 2
+done
+ACTUAL=$(echo "$TRACE_JSON" | grep -oE '"serviceName":"[^"]*"' | sort -u | tr '\n' ' ')
+echo "info servicio(s) dentro de la traza $TRACE_ID: ${ACTUAL:-<ninguno>}"
+
+JOUT=$SERVICES
+if echo "$SERVICES" | grep -q 'ms-transfer-limits'; then echo "ok   Jaeger tiene el servicio ms-transfer-limits"
+else fail_j "Jaeger no tiene el servicio ms-transfer-limits (servicio en la traza: ${ACTUAL:-ninguno})"; fi
+
+JOUT=$TRACE_JSON
+if echo "$TRACE_JSON" | grep -q "\"traceID\":\"$TRACE_ID\""; then echo "ok   el traceId del problem+json ($TRACE_ID) existe en Jaeger"
+else fail_j "Jaeger no tiene el traceId $TRACE_ID del problem+json"; fi
+
+if echo "$TRACE_JSON" | grep -q '"operationName":"transfer.validate"'; then echo "ok   span propio transfer.validate presente en esa traza"
+else fail_j "la traza $TRACE_ID no tiene el span transfer.validate"; fi
+
+SPANS=$(echo "$TRACE_JSON" | grep -o '"spanID"' | wc -l)
+if [ "$SPANS" -ge 2 ]; then echo "ok   la traza tiene $SPANS spans (peticion HTTP + transfer.validate)"
+else fail_j "la traza solo tiene $SPANS span(s): transfer.validate no es hijo de la peticion HTTP"; fi
+
+if echo "$TRACE_JSON" | grep -qF '"transfer.account_masked"' && echo "$TRACE_JSON" | grep -qF "\"****${ACCOUNT: -4}\""; then
+  echo "ok   accountId enmascarado en el span (****${ACCOUNT: -4})"
+else fail_j "no se ve la cuenta enmascarada ****${ACCOUNT: -4} en la traza"; fi
+
+if echo "$TRACE_JSON" | grep -qF "$ACCOUNT"; then fail_j "el accountId COMPLETO aparece en la traza"
+else echo "ok   el accountId completo no aparece en la traza"; fi
+
+# Busqueda por servicio (API interna, informativa: no hace fallar el smoke test)
+NOW=$(date +%s)
+JOUT=$(curl -s -m 10 "$JAEGER/api/traces?service=ms-transfer-limits&limit=20&start=$(( (NOW - 3600) * 1000000 ))&end=$(( (NOW + 60) * 1000000 ))")
+if echo "$JOUT" | grep -q "\"traceID\":\"$TRACE_ID\""; then echo "ok   la busqueda por servicio devuelve la traza"
+else echo "WARN la busqueda por servicio no devolvio la traza: ${JOUT:0:200}"; fi
 
 echo
 if [ "$FAILS" -ne 0 ]; then echo "SMOKE TEST FALLO: $FAILS verificaciones"; exit 1; fi
