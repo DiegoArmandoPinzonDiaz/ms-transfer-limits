@@ -70,10 +70,4 @@ class ChannelLimitsStatusTest {
     assertThat(status.evaluate(money("1")))
         .isEqualTo(new Rejected(RejectionReason.DAILY_LIMIT_EXCEEDED, money("300"), Money.ZERO));
   }
-
-  @Test
-  @DisplayName("AC-01: sumar consumo produce un nuevo estado")
-  void ac01WithConsumption() {
-    assertThat(status("100").withConsumption(money("50")).consumedToday()).isEqualTo(money("150"));
-  }
 }

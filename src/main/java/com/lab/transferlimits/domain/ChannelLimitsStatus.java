@@ -24,9 +24,4 @@ public record ChannelLimitsStatus(ChannelLimits limits, Money consumedToday) {
     }
     return new Approved(available.minusFloorZero(amount));
   }
-
-  /** Estado resultante de sumar un monto aprobado al consumo. */
-  public ChannelLimitsStatus withConsumption(Money amount) {
-    return new ChannelLimitsStatus(limits, consumedToday.plus(amount));
-  }
 }

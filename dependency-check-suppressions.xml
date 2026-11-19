@@ -41,4 +41,9 @@
     <packageUrl regex="false">pkg:maven/io.opentelemetry.proto/opentelemetry-proto@1.10.0-alpha</packageUrl>
     <cve>CVE-2026-44967</cve>
   </suppress>
+  <suppress>
+    <notes><![CDATA[Falso positivo (2026-11-19): CVE-2026-54285 es de opentelemetry-js (@opentelemetry/core), no de opentelemetry-common (Java).]]></notes>
+    <packageUrl regex="false">pkg:maven/io.opentelemetry/opentelemetry-common@1.62.0</packageUrl>
+    <cve>CVE-2026-54285</cve>
+  </suppress>
 </suppressions>

@@ -76,7 +76,7 @@ check_problem "AC-05 rechazo por acumulado" 422 'DAILY_LIMIT_EXCEEDED'
 echo "$OUT" | grep -Eq '"availableAmount":149\.5' || fail "AC-05: availableAmount esperado 149.50"
 
 # 6. El rechazo no consume (AC-06) y otros canales no se afectan (AC-07)
-req GET "$API/limits"; check "AC-06 rechazo no consume (consumido 850.50)" 200 '"consumedToday":850\.5'
+req GET "$API/limits"; check "AC-06 rechazos (por operacion y por acumulado) no consumen limite (consumido 850.50)" 200 '"consumedToday":850\.5'
 
 # 7-8. Sin limites configurados (AC-10)
 req_ct POST "$API/transfer-validations" '{"channel": "WEB", "amount": 10}'
@@ -94,6 +94,45 @@ OUT=$(curl -s -D /tmp/smoke-h.$$ "$BASE/api/v1/accounts/NO-EXISTE-$RANDOM/limits
 CODE=$(head -1 /tmp/smoke-h.$$ | awk '{print $2}'); CT=$(grep -i '^content-type' /tmp/smoke-h.$$ | tr -d '\r' | cut -d' ' -f2-); rm -f /tmp/smoke-h.$$
 check_problem "AC-10 cuenta inexistente" 404
 NOT_FOUND_TRACE=$(trace_of)
+
+# 10b. AC-07: el consumo de MOBILE (850.50) no afecta a otro canal de la misma cuenta
+req PUT "$API/limits/WEB" '{"dailyLimit": 500.00, "perOperationLimit": 500.00}'; check "AC-12 crear limites WEB" 200
+req GET "$API/limits"
+check "AC-07 WEB sin consumo mientras MOBILE tiene consumo" 200 '"channel":"WEB"[^}]*"consumedToday":0(\.0+)?[,}]'
+echo "$OUT" | grep -Eq '"channel":"MOBILE"[^}]*"consumedToday":850\.5' || fail "AC-07: MOBILE no conserva su consumo"
+
+# 10c. AC-14: bajar el limite diario por debajo de lo consumido se acepta y rechaza lo nuevo
+req PUT "$API/limits/MOBILE" '{"dailyLimit": 500.00, "perOperationLimit": 100.00}'
+check "AC-14 bajar limite diario (500) por debajo de lo consumido (850.50)" 200 '"consumedToday":850\.5.*"availableToday":0(\.0+)?[,}]'
+req_ct POST "$API/transfer-validations" '{"channel": "MOBILE", "amount": 1.00}'
+check_problem "AC-14 nueva transferencia se rechaza por falta de disponible" 422 'DAILY_LIMIT_EXCEEDED'
+
+# 10d. AC-16: validaciones simultaneas contra el mismo canal (PostgreSQL real): nunca se supera el diario
+req PUT "$API/limits/BRANCH" '{"dailyLimit": 1000.00, "perOperationLimit": 100.00}'
+check "AC-16 preparar BRANCH (diario 1000, por operacion 100)" 200
+PARALLEL=30
+TMPD=$(mktemp -d)
+for i in $(seq 1 "$PARALLEL"); do
+  curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'Content-Type: application/json' \
+    -d '{"channel": "BRANCH", "amount": 100.00}' "$BASE$API/transfer-validations" > "$TMPD/$i" &
+done
+wait
+APPROVED=$(cat "$TMPD"/* | grep -c '^200$'); REJECTED=$(cat "$TMPD"/* | grep -c '^422$'); rm -rf "$TMPD"
+echo "info AC-16: $PARALLEL peticiones simultaneas -> $APPROVED aprobadas, $REJECTED rechazadas"
+[ $((APPROVED + REJECTED)) -eq "$PARALLEL" ] || fail "AC-16: hubo respuestas distintas de 200/422"
+[ $((APPROVED * 100)) -le 1000 ] || fail "AC-16: la suma aprobada ($((APPROVED * 100))) supera el limite diario (1000)"
+[ "$APPROVED" -eq 10 ] || fail "AC-16: se esperaban exactamente 10 aprobadas (1000/100) y hubo $APPROVED"
+req GET "$API/limits"
+check "AC-16 consumo final de BRANCH = 1000.00" 200 '"channel":"BRANCH"[^}]*"consumedToday":1000(\.0+)?[,}]'
+
+# 10e. Entradas invalidas (AC-08 con monto gigante, accountId invalido): 400, no 500
+req_ct POST "$API/transfer-validations" '{"channel": "MOBILE", "amount": 1e999999999}'
+check_problem "AC-08 monto gigante" 400
+LONG_ACCOUNT=$(printf 'A%.0s' $(seq 1 65))
+req_ct PUT "/api/v1/accounts/$LONG_ACCOUNT/limits/WEB" '{"dailyLimit": 100, "perOperationLimit": 10}'
+check_problem "accountId de 65 caracteres" 400
+req_ct PUT "/api/v1/accounts/bad%20id/limits/WEB" '{"dailyLimit": 100, "perOperationLimit": 10}'
+check_problem "accountId con caracteres no permitidos" 400
 
 # 11. Jaeger (API JSON interna). Se reintenta ~30 s: el exportador OTLP envia por lotes.
 echo "Esperando trazas en Jaeger ($JAEGER)..."

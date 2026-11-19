@@ -146,8 +146,12 @@ components:
       name: accountId
       in: path
       required: true
+      description: 'Identificador de cuenta: 1-64 caracteres (letras, numeros, punto, guion y guion bajo).'
       schema:
         type: string
+        minLength: 1
+        maxLength: 64
+        pattern: '^[A-Za-z0-9._-]+$'
       example: ACC-001
   schemas:
     ChannelName:
@@ -183,10 +187,14 @@ components:
       properties:
         dailyLimit:
           type: number
-          description: Mayor a 0, maximo 2 decimales.
+          description: Mayor a 0, maximo 2 decimales, menor a 10^17.
+          maximum: 100000000000000000
+          exclusiveMaximum: true
         perOperationLimit:
           type: number
           description: Mayor a 0, maximo 2 decimales, no mayor al limite diario.
+          maximum: 100000000000000000
+          exclusiveMaximum: true
     TransferValidationRequest:
       type: object
       required: [channel, amount]
@@ -196,7 +204,9 @@ components:
           description: MOBILE, WEB o BRANCH; otro valor responde 400.
         amount:
           type: number
-          description: Mayor a 0, maximo 2 decimales.
+          description: Mayor a 0, maximo 2 decimales, menor a 10^17.
+          maximum: 100000000000000000
+          exclusiveMaximum: true
     TransferApproval:
       type: object
       required: [message, availableToday]

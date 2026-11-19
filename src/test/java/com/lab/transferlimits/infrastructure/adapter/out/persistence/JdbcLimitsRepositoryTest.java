@@ -34,6 +34,8 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.core.simple.JdbcClient.MappedQuerySpec;
 import org.springframework.jdbc.core.simple.JdbcClient.StatementSpec;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Pruebas unitarias con JdbcClient simulado. La atomicidad real en PostgreSQL: docs/known-gaps.md.
@@ -145,7 +147,7 @@ class JdbcLimitsRepositoryTest {
   }
 
   @Test
-  @DisplayName("AC-16: consume aplicado es UNA sola sentencia, sin leer antes de escribir")
+  @DisplayName("Técnica: consume aplicado es UNA sola sentencia, sin leer antes de escribir")
   void ac16ConsumeAppliedIsSingleStatement() {
     stub(CONSUME_FRAGMENT, List.of(Map.of("consumed", bd("300"), "daily_limit", bd("1000"))));
 
@@ -157,7 +159,7 @@ class JdbcLimitsRepositoryTest {
   }
 
   @Test
-  @DisplayName("AC-16: la sentencia de consumo es INSERT ... ON CONFLICT DO UPDATE condicionada")
+  @DisplayName("Técnica: la sentencia de consumo es INSERT ... ON CONFLICT DO UPDATE condicionada")
   void ac16ConsumeSqlIsConditionalUpsert() {
     assertThat(JdbcLimitsRepository.CONSUME)
         .contains("ON CONFLICT (account_id, channel, business_date) DO UPDATE")
@@ -201,7 +203,7 @@ class JdbcLimitsRepositoryTest {
   }
 
   @Test
-  @DisplayName("AC-16: si el estado cambia entre la sentencia y la lectura, reintenta")
+  @DisplayName("Técnica: si el estado cambia entre la sentencia y la lectura, reintenta")
   void ac16RetriesWhenStateChanged() {
     stub(
         CONSUME_FRAGMENT,
@@ -215,12 +217,25 @@ class JdbcLimitsRepositoryTest {
 
   @Test
   @DisplayName(
-      "AC-17: si nunca se logra aplicar falla con error generico (no aprueba sin consumir)")
+      "Técnica: si nunca se logra aplicar falla con error generico (no aprueba sin consumir)")
   void ac17GivesUpAfterMaxAttempts() {
     stub(CONSUME_FRAGMENT, none());
     stub(STATUS_FRAGMENT, List.of(statusRow("WEB", "1000", "300", "0")));
 
     assertThatThrownBy(() -> repository.consume("ACC-1", Channel.WEB, DAY, money("100")))
         .isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
+  @DisplayName(
+      "Técnica: consume corre en READ COMMITTED explicito (requisito de la sentencia atomica)")
+  void consumeIsReadCommitted() throws NoSuchMethodException {
+    Transactional transactional =
+        JdbcLimitsRepository.class
+            .getMethod("consume", String.class, Channel.class, LocalDate.class, Money.class)
+            .getAnnotation(Transactional.class);
+
+    assertThat(transactional).isNotNull();
+    assertThat(transactional.isolation()).isEqualTo(Isolation.READ_COMMITTED);
   }
 }

@@ -19,7 +19,7 @@ class OtlpExportTest {
 
   @Test
   @DisplayName(
-      "Trazas: el exportador OTLP envia por HTTP con el sender del JDK (sin OkHttp ni Kotlin)")
+      "Técnica: trazas: el exportador OTLP envia por HTTP con el sender del JDK (sin OkHttp ni Kotlin)")
   void exportsSpansWithJdkSender() throws Exception {
     CompletableFuture<String> received = new CompletableFuture<>();
     HttpServer collector = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -53,7 +53,7 @@ class OtlpExportTest {
   }
 
   @Test
-  @DisplayName("Dependencias: OkHttp y kotlin-stdlib ya no estan en el classpath")
+  @DisplayName("Técnica: dependencias: OkHttp y kotlin-stdlib ya no estan en el classpath")
   void okHttpAndKotlinAreGone() {
     assertThatThrownBy(() -> Class.forName("okhttp3.OkHttpClient"))
         .isInstanceOf(ClassNotFoundException.class);
@@ -62,7 +62,7 @@ class OtlpExportTest {
   }
 
   @Test
-  @DisplayName("AC-17 y privacidad: los spans HTTP no llevan la URL real (accountId completo)")
+  @DisplayName("Técnica: privacidad: los spans HTTP no llevan la URL real (accountId completo)")
   void httpUrlIsRemovedFromObservations() {
     Observation.Context context = new Observation.Context();
     context.addHighCardinalityKeyValue(

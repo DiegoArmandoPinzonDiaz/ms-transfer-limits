@@ -21,7 +21,7 @@ Los criterios de aceptación de negocio los define el desarrollador en `ACCEPTAN
 - `domain`: modelo y reglas puras, sin Spring.
 - `application`: casos de uso y puertos (in/out).
 - `infrastructure.adapter.in.web`: controllers REST, manejo de errores.
-- `infrastructure.adapter.out.persistence`: JPA/PostgreSQL.
+- `infrastructure.adapter.out.persistence`: JDBC (`JdbcClient`) con PostgreSQL y Flyway.
 Dependencias solo hacia adentro: infrastructure → application → domain.
 
 ## Comandos
@@ -32,7 +32,7 @@ Dependencias solo hacia adentro: infrastructure → application → domain.
 ./mvnw spring-boot:run   # correr (necesita PostgreSQL: DB_URL, DB_USER, DB_PASSWORD)
 docker build -t ms-transfer-limits .
 ```
-JDK 27 y Maven locales en `~/tools` (no tocan el JAVA_HOME del sistema): los scripts de `.claude/hooks/env.sh` lo resuelven. En terminal manual: `source .claude/hooks/env.sh`.
+Requiere JDK 27 (en `JAVA_HOME`, en el `PATH` o en `TRANSFERLIMITS_JAVA_HOME`; `.claude/hooks/env.sh` lo resuelve). Maven viene del wrapper (`./mvnw`), no hace falta instalarlo.
 
 Git hook para pushes manuales: `git config core.hooksPath .githooks`
 

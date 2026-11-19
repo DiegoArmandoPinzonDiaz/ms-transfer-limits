@@ -22,7 +22,7 @@ class TransferMessagesTest {
   }
 
   @Test
-  @DisplayName("Seguridad de plantillas: un valor con sintaxis de variable no se evalua")
+  @DisplayName("Técnica: seguridad de plantillas: un valor con sintaxis de variable no se evalua")
   void valuesAreNeverEvaluatedAsTemplates() {
     String message =
         TransferMessages.render(

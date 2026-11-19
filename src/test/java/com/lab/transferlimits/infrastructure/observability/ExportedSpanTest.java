@@ -50,14 +50,14 @@ class ExportedSpanTest {
   }
 
   @Test
-  @DisplayName("Traza: service.name del recurso es exactamente ms-transfer-limits")
+  @DisplayName("Técnica: traza: service.name del recurso es exactamente ms-transfer-limits")
   void serviceNameIsApplicationName() throws Exception {
     assertThat(serviceNameFromRealConfig()).isEqualTo("ms-transfer-limits");
   }
 
   @Test
   @DisplayName(
-      "Traza: el span exportado tiene service.name, nombre, atributos y es hijo de la peticion")
+      "Técnica: traza: el span exportado tiene service.name, nombre, atributos y es hijo de la peticion")
   void exportedSpanIsNamedMaskedAndChildOfCurrentSpan() throws Exception {
     InMemorySpanExporter exporter = InMemorySpanExporter.create();
     Resource resource =

@@ -6,10 +6,13 @@ import com.lab.transferlimits.domain.RejectionReason;
 import com.lab.transferlimits.domain.ValidationResult.Rejected;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
+import jakarta.validation.ConstraintViolationException;
 import java.net.URI;
+import java.sql.SQLException;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -20,6 +23,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
@@ -62,9 +66,40 @@ public class ProblemExceptionHandler extends ResponseEntityExceptionHandler {
     return problem;
   }
 
+  /** Restricciones de los parametros de ruta (p. ej. accountId) cuando Spring valida por proxy. */
+  @ExceptionHandler(ConstraintViolationException.class)
+  ProblemDetail constraintViolation(ConstraintViolationException ex) {
+    return invalidParameter();
+  }
+
+  @Override
+  protected ResponseEntity<Object> handleHandlerMethodValidationException(
+      HandlerMethodValidationException ex,
+      HttpHeaders headers,
+      HttpStatusCode status,
+      WebRequest request) {
+    return ResponseEntity.badRequest().body(invalidParameter());
+  }
+
+  private static ProblemDetail invalidParameter() {
+    return problem(
+        HttpStatus.BAD_REQUEST,
+        "invalid-request",
+        "Peticion invalida",
+        "Un parametro de la peticion no es valido.");
+  }
+
   @ExceptionHandler(Exception.class)
   ProblemDetail unexpected(Exception ex) {
-    LOG.error("Error inesperado procesando la peticion", ex);
+    if (ex instanceof DataAccessException dataError) {
+      // Solo clase y SQLState: el mensaje del driver puede traer valores (p. ej. el accountId).
+      Throwable cause = dataError.getMostSpecificCause();
+      String sqlState = cause instanceof SQLException sql ? sql.getSQLState() : "n/a";
+      LOG.error(
+          "Error de acceso a datos: causa={} sqlState={}", cause.getClass().getName(), sqlState);
+    } else {
+      LOG.error("Error inesperado procesando la peticion", ex);
+    }
     return problem(
         HttpStatus.INTERNAL_SERVER_ERROR,
         "internal-error",

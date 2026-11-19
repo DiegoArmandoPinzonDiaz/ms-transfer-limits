@@ -21,7 +21,7 @@ class UseCaseConfigTest {
   }
 
   @Test
-  @DisplayName("Cableado: los casos de uso se crean con el repositorio y el reloj")
+  @DisplayName("Técnica: cableado: los casos de uso se crean con el repositorio y el reloj")
   void wiresUseCases() {
     LimitsRepositoryPort repository = mock(LimitsRepositoryPort.class);
     Clock clock = config.clock();

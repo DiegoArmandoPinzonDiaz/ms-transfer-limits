@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Adaptador PostgreSQL de limites y consumo diario. */
@@ -99,7 +100,14 @@ public class JdbcLimitsRepository implements LimitsRepositoryPort {
     return findOne(accountId, limits.channel(), day).orElseThrow();
   }
 
+  /**
+   * READ COMMITTED fijo (no depende del default del pool o del servidor): CONSUME es seguro justo
+   * porque, bajo este nivel, la sentencia que espera el bloqueo de fila reevalua su WHERE contra la
+   * ultima version confirmada. Con REPEATABLE READ o SERIALIZABLE, PostgreSQL abortaria la segunda
+   * transaccion con 40001 en lugar de reevaluar, y las validaciones concurrentes fallarian.
+   */
   @Override
+  @Transactional(isolation = Isolation.READ_COMMITTED)
   public Optional<ValidationResult> consume(
       String accountId, Channel channel, LocalDate day, Money amount) {
     for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {

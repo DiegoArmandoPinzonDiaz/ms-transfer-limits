@@ -61,7 +61,7 @@ class TracedValidateTransferUseCaseTest {
   }
 
   @Test
-  @DisplayName("Traza: aprobada registra canal, resultado approved y cuenta enmascarada")
+  @DisplayName("Técnica: traza: aprobada registra canal, resultado approved y cuenta enmascarada")
   void approvedSpan() {
     when(delegate.validate(any())).thenReturn(new Result(new Approved(money("10")), "ok"));
 
@@ -78,7 +78,7 @@ class TracedValidateTransferUseCaseTest {
   }
 
   @Test
-  @DisplayName("Traza: rechazada registra resultado rejected y reasonCode")
+  @DisplayName("Técnica: traza: rechazada registra resultado rejected y reasonCode")
   void rejectedSpan() {
     Rejected rejected =
         new Rejected(RejectionReason.DAILY_LIMIT_EXCEEDED, money("300"), money("100"));
@@ -94,7 +94,7 @@ class TracedValidateTransferUseCaseTest {
   }
 
   @Test
-  @DisplayName("Traza: nunca incluye el accountId completo ni montos")
+  @DisplayName("Técnica: traza: nunca incluye el accountId completo ni montos")
   void spanHasNoSensitiveData() {
     when(delegate.validate(any())).thenReturn(new Result(new Approved(money("10")), "ok"));
 
@@ -105,7 +105,7 @@ class TracedValidateTransferUseCaseTest {
   }
 
   @Test
-  @DisplayName("Traza: una excepcion marca el span con ERROR sin copiar el mensaje")
+  @DisplayName("Técnica: traza: una excepcion marca el span con ERROR sin copiar el mensaje")
   void errorSpan() {
     when(delegate.validate(any())).thenThrow(new LimitsNotFoundException());
 
@@ -118,7 +118,7 @@ class TracedValidateTransferUseCaseTest {
   }
 
   @Test
-  @DisplayName("Mascara de cuenta: solo los ultimos 4 caracteres")
+  @DisplayName("Técnica: máscara de cuenta: solo los ultimos 4 caracteres")
   void accountMask() {
     assertThat(AccountMask.mask("ACC-00012345")).isEqualTo("****2345");
     assertThat(AccountMask.mask("1234")).isEqualTo("****");

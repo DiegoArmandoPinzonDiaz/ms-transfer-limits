@@ -5,3 +5,7 @@ mvnw text eol=lf
 *.cmd text eol=crlf
 Dockerfile text eol=lf
 .mvn/wrapper/maven-wrapper.properties text eol=lf
+.env* text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+.mvn/jvm.config text eol=lf

@@ -1,5 +1,5 @@
 # Criterios de aceptación - MS-TRANSFER-LIMITS
-Definidos por el desarrollador. Cada prueba debe referenciar el ID del criterio que cubre.
+Definidos por el desarrollador. Cada prueba debe referenciar el ID del criterio que cubre. Las pruebas que no verifican un criterio (cableado, trazas, seguridad, infraestructura) se etiquetan con el prefijo "Técnica:".
 
 ## Validación de transferencias
 - AC-01: Si el monto no supera el límite por operación ni lo disponible del día del canal, se aprueba y el monto se suma al consumo del día.

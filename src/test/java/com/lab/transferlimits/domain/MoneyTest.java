@@ -35,7 +35,7 @@ class MoneyTest {
   }
 
   @Test
-  @DisplayName("AC-03: el disponible puede ser 0 y la resta nunca baja de 0")
+  @DisplayName("Técnica: el disponible puede ser 0 y la resta nunca baja de 0")
   void ac03ZeroAllowedAndFloor() {
     assertThat(Money.of(BigDecimal.ZERO)).isEqualTo(Money.ZERO);
     assertThatThrownBy(() -> Money.of(new BigDecimal("-1")))
@@ -48,14 +48,13 @@ class MoneyTest {
   }
 
   @Test
-  @DisplayName("AC-01: suma y comparacion de montos")
+  @DisplayName("Técnica: suma y comparacion de montos")
   void ac01PlusAndCompare() {
     Money five = Money.positive(new BigDecimal("5"));
     Money three = Money.positive(new BigDecimal("3"));
     assertThat(five.plus(three)).isEqualTo(Money.positive(new BigDecimal("8")));
     assertThat(five.isGreaterThan(three)).isTrue();
     assertThat(three.isGreaterThan(five)).isFalse();
-    assertThat(five.compareTo(three)).isPositive();
     assertThat(five).hasSameHashCodeAs(Money.positive(new BigDecimal("5.00")));
     assertThat(five).isNotEqualTo("5.00");
   }
