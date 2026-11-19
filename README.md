@@ -104,14 +104,14 @@ El 422 trae como campos de extensión `reasonCode`, `requestedAmount` y `perOper
 4. **Fase 4: observabilidad, seguridad y CI.** OpenTelemetry con Jaeger, `traceId` en los errores, escaneo de dependencias (perfil `security`) y GitHub Actions con tres jobs: `build`, `security` y `docker` (compose + smoke test).
 5. **Fase 5: revisión y documentación.** Revisión con un subagente independiente de solo lectura (código, pruebas contra los criterios, secretos en el historial, prueba de clon limpio), correcciones aprobadas una por una y este README.
 
-Lo que más me sorprendió, en mis palabras: *"Que los controles automáticos encontraron problemas reales: una vulnerabilidad crítica en una dependencia transitiva y un archivo que faltaba en el repositorio y que habría fallado al clonarlo."* En concreto: el escaneo marcó `kotlin-stdlib` (CVSS 9.8, que llegaba por OkHttp, dependencia del exportador OTLP) y se resolvió quitando esa dependencia; y el job `docker` de CI falló porque `.gitignore` ignoraba `.env.example`, igual que antes había fallado por `mvnw` sin permiso de ejecución al crear el repo en Windows.
+Lo que más me sorprendió, en mis palabras: *"Que los controles automáticos encontraron problemas reales: una alerta crítica (CVSS 9.8) en una dependencia transitiva, que resolví eliminando la dependencia en vez de suprimirla, y un archivo que faltaba en el repositorio y que habría fallado al clonarlo."* En concreto: el escaneo marcó `kotlin-stdlib` (CVSS 9.8, que llegaba por OkHttp, dependencia del exportador OTLP) y se resolvió quitando esa dependencia; y el job `docker` de CI falló porque `.gitignore` ignoraba `.env.example`, igual que antes había fallado por `mvnw` sin permiso de ejecución al crear el repo en Windows.
 
 ## 6. El harness
 
 | Pieza | Qué hace | Cómo se probó |
 |---|---|---|
 | [`CLAUDE.md`](CLAUDE.md) | Objetivo, requisitos, arquitectura hexagonal, comandos y reglas: contract-first, cero lógica de negocio en controllers, errores siempre RFC 9457, Commons Text solo con `StringSubstitutor` + Map, sin secretos, pruebas derivadas de `ACCEPTANCE-CRITERIA.md`, `./mvnw verify` antes de terminar, supresiones solo individuales | Es instrucción para el agente; se cumplió revisándolo en la revisión independiente |
-| [`.claude/settings.json`](.claude/settings.json) | Permisos: permite `mvnw`, `docker compose up/down/logs/ps/build`, `git status/diff/add/commit`; deniega leer `.env`, `rm -rf`, `git push --force`, `docker compose down -v`, `docker volume` y `docker system prune`. `git push` normal no está permitido de antemano. Define los dos hooks | JSON validado; los hooks se probaron con entradas simuladas (abajo) |
+| [`.claude/settings.json`](.claude/settings.json) | Permisos: permite `mvnw`, `docker compose up/down/logs/ps/build`, `git status/diff/add/commit`; deniega leer `.env`, `rm -rf`, `git push` (incluido `--force`), `docker compose down -v`, `docker volume` y `docker system prune`. Define los dos hooks | JSON validado; los hooks se probaron con entradas simuladas (abajo) |
 | Hook de formato (`PostToolUse`, `.claude/hooks/format-java.sh`) | Tras editar un `.java` corre `spotless:apply` | Un archivo mal formateado quedó con estilo Google |
 | Hook de pre-push (`PreToolUse`, `claude-pre-push.sh` → `pre-push-check.sh`) | Si el comando es un `git push` (también `git -C . push`, `-c`, ruta completa, `bash -c`, alias) corre `./mvnw verify -Psecurity` y bloquea con exit 2 si algo falla | Con formato roto devolvió exit 2 y con el código limpio pasó; 14 casos de detección de push |
 | Hook de git (`.githooks/pre-push`) | Llama al mismo script para pushes hechos a mano | Devolvió exit 2 con formato roto |
@@ -126,7 +126,7 @@ Nota: en la Fase 5 la revisión se lanzó como un subagente general que siguió 
 - Las **pruebas se derivan de mis criterios** y cada una lleva el ID del criterio que cubre; las que no verifican un criterio se marcan "Técnica:".
 - El **revisor es independiente y de solo lectura**: no modifica código; sus hallazgos se me presentaron en una tabla y yo aprobé qué corregir.
 - Las **puertas finales son deterministas**, no del modelo: Maven (`verify`), formato, cobertura >= 90%, escaneo de dependencias y CI.
-- **El push lo hago yo.** `git push` no está en los permisos del agente, el force push está denegado y, si se intenta, el hook corre las verificaciones y bloquea si fallan.
+- **El push lo hago yo; el agente tiene prohibido hacer push**, en tres capas: (1) `settings.json` deniega `git push` (y el force push); (2) el hook de Claude, si de todos modos se intentara, corre `verify -Psecurity` y bloquea si falla; (3) el hook de git hace lo mismo para los pushes hechos a mano.
 - **Cada decisión relevante la aprobé yo** (rechazo 422, supresiones de falsos positivos, descargas, cambios de dependencias).
 
 ## 8. Decisiones técnicas y por qué
@@ -144,7 +144,7 @@ Nota: en la Fase 5 la revisión se lanzó como un subagente general que siguió 
 ## 9. Pruebas y calidad
 
 - **106 pruebas** unitarias, **100% de cobertura de líneas y 93.8% de ramas** (JaCoCo exige >= 90% en `verify`). Sin Spring ni base de datos: dominio y aplicación puros, controllers con MockMvc y casos de uso simulados, persistencia con `JdbcClient` simulado, concurrencia (AC-16) con un adaptador en memoria y 50 hilos.
-- **Sin pruebas de integración en el proyecto**, por requerimiento. Lo que habría cubierto una (SQL real, Flyway, arranque del contexto) se verifica en el **smoke test del job `docker` de CI**, contra PostgreSQL real: flujo completo con los códigos HTTP de cada criterio, 30 validaciones simultáneas sobre el mismo canal (la suma aprobada nunca supera el diario; deben ser exactamente 10 de 100 con límite 1,000), AC-06, AC-07, AC-14, montos y `accountId` inválidos, `traceId` en los errores y trazas en Jaeger.
+- **Sin pruebas de integración en el proyecto**, por requerimiento. Lo que habría cubierto una (SQL real, Flyway, arranque del contexto) se verifica en el **smoke test del job `docker` de CI**, contra PostgreSQL real: flujo completo con los códigos HTTP de cada criterio, 30 validaciones simultáneas sobre el mismo canal (la suma aprobada nunca supera el diario; deben ser exactamente 10 de 100 con límite 1,000), AC-06, AC-07, AC-14, montos y `accountId` inválidos, `traceId` en los errores y trazas en Jaeger. El job `docker` de CI pasó en verde con estos pasos.
 
 ## 10. Limitaciones conocidas
 
