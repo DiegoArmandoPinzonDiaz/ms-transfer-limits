@@ -50,3 +50,5 @@ Git hook para pushes manuales: `git config core.hooksPath .githooks`
 - Trazas OTel (starter oficial `spring-boot-starter-opentelemetry`, export OTLP/HTTP). Con `docker compose up --build` la UI de Jaeger queda en http://localhost:16686 (servicio `ms-transfer-limits`).
 - No poner accountId completo ni montos en atributos de spans ni logs (usar `AccountMask`). Todo problem+json lleva `traceId`.
 - Escaneo de CVE: `./mvnw verify -Psecurity` (OWASP dependency-check, falla con CVSS >= 7). Es lo que corre el hook de pre-push. Con llave NVD en la variable de entorno `NVD_API_KEY` es mucho mas rapido; sin llave funciona igual pero la primera descarga de la base NVD tarda bastante (se cachea en ~/.m2). Nunca poner la llave en el repo.
+- CI (`.github/workflows/ci.yml`): `build` (verify), `security` (verify -Psecurity, secret `NVD_API_KEY`) y `docker` (compose up + `bash scripts/smoke-test.sh`). El smoke test tambien sirve en local con `docker compose up --build -d`.
+- Supresiones de dependency-check: solo en `dependency-check-suppressions.xml`, una por CVE y artefacto, con motivo y fecha. Prohibido suprimir por grupo o subir el umbral CVSS.
