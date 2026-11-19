@@ -115,10 +115,12 @@ Lo que más me sorprendió, en mis palabras: *"Que los controles automáticos en
 | Hook de formato (`PostToolUse`, `.claude/hooks/format-java.sh`) | Tras editar un `.java` corre `spotless:apply` | Un archivo mal formateado quedó con estilo Google |
 | Hook de pre-push (`PreToolUse`, `claude-pre-push.sh` → `pre-push-check.sh`) | Si el comando es un `git push` (también `git -C . push`, `-c`, ruta completa, `bash -c`, alias) corre `./mvnw verify -Psecurity` y bloquea con exit 2 si algo falla | Con formato roto devolvió exit 2 y con el código limpio pasó; 14 casos de detección de push |
 | Hook de git (`.githooks/pre-push`) | Llama al mismo script para pushes hechos a mano | Devolvió exit 2 con formato roto |
-| 3 skills (`.claude/skills/`) | `new-endpoint` (contract-first y pruebas desde los criterios), `problem-details` (errores RFC 9457 con plantillas seguras) y `coverage-check` (clases bajo 90%) | Escritas; **no se ejercitaron como skills** durante el desarrollo |
-| Subagente `code-reviewer` (`.claude/agents/`) | Solo lectura (`Read`, `Grep`, `Glob` y Bash limitado a `mvnw`); revisa estilo, diseño, concurrencia, validación, datos sensibles, Commons Text, CVE y que las pruebas cubran los criterios. Devuelve hallazgos priorizados | Se ejecutó una vez sobre todo el repo (Fase 5); ver nota |
+| 3 skills (`.claude/skills/`) | `new-endpoint` (contract-first y pruebas desde los criterios), `problem-details` (errores RFC 9457 con plantillas seguras) y `coverage-check` (clases bajo 90%) | `coverage-check` se invocó como skill en una sesión de prueba: `verify` pasó y solo `ProblemExceptionHandler` quedó bajo 90% (ramas 75%, líneas 100%). `new-endpoint` y `problem-details` siguen **sin ejercitarse** |
+| Subagente `code-reviewer` (`.claude/agents/`) | Solo lectura (`Read`, `Grep`, `Glob` y Bash limitado a `mvnw`); revisa estilo, diseño, concurrencia, validación, datos sensibles, Commons Text, CVE y que las pruebas cubran los criterios. Devuelve hallazgos priorizados | Se ejecutó sobre todo el repo (Fase 5, como subagente general) y, en una sesión de prueba, ya **registrado** como `code-reviewer` sobre el último commit: sin hallazgos críticos ni altos; 3 medios (el `deny` solo cubre el prefijo literal de `git push`; el texto de "tres capas" sobrevende las capas 2 y 3; la afirmación del job `docker` en verde no estaba verificada) |
 
-Nota: en la Fase 5 la revisión se lanzó como un subagente general que siguió la definición de `.claude/agents/code-reviewer.md`, porque ese tipo de agente no estaba registrado en la sesión de desarrollo.
+Notas de la sesión de prueba:
+- Intento real de `git push` desde el agente: **bloqueado por la capa 1** (`deny` de `settings.json`, antes de ejecutar nada). Los hooks de las capas 2 y 3 no llegaron a correr en ese intento.
+- El shell del agente traía JDK 8/17 en `JAVA_HOME`; `./mvnw verify` falló (`--add-exports`) hasta cargar `source .claude/hooks/env.sh`. La skill `coverage-check` no lo hace en su paso 1.
 
 ## 7. Control humano ("la IA no es juez y parte")
 
@@ -126,7 +128,7 @@ Nota: en la Fase 5 la revisión se lanzó como un subagente general que siguió 
 - Las **pruebas se derivan de mis criterios** y cada una lleva el ID del criterio que cubre; las que no verifican un criterio se marcan "Técnica:".
 - El **revisor es independiente y de solo lectura**: no modifica código; sus hallazgos se me presentaron en una tabla y yo aprobé qué corregir.
 - Las **puertas finales son deterministas**, no del modelo: Maven (`verify`), formato, cobertura >= 90%, escaneo de dependencias y CI.
-- **El push lo hago yo; el agente tiene prohibido hacer push**, en tres capas: (1) `settings.json` deniega `git push` (y el force push); (2) el hook de Claude, si de todos modos se intentara, corre `verify -Psecurity` y bloquea si falla; (3) el hook de git hace lo mismo para los pushes hechos a mano.
+- **El push lo hago yo; el agente tiene prohibido hacer push**: (1) `settings.json` deniega `git push` (y el force push); esta capa es la única que lo prohíbe y se probó con un intento real, que fue bloqueado (cubre el prefijo literal; variantes como `git -C . push` no se probaron contra el `deny`); (2) el hook de Claude y (3) el hook de git no prohíben el push: corren `verify -Psecurity` y bloquean solo si falla.
 - **Cada decisión relevante la aprobé yo** (rechazo 422, supresiones de falsos positivos, descargas, cambios de dependencias).
 
 ## 8. Decisiones técnicas y por qué
