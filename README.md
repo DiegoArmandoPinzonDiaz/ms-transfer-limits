@@ -94,7 +94,7 @@ El 422 trae como campos de extensión `reasonCode`, `requestedAmount` y `perOper
 
 ## 4. Agente utilizado
 
-**Claude Code (app de escritorio)**, con el modelo **Claude Sonnet 5.5** (`claude-sonnet-5-5`) en la sesión de desarrollo. El desarrollo se hizo con **prompts por fases preparados aparte** (no están en este repositorio), con instrucciones de ahorro de tokens: respuestas cortas, no releer archivos innecesarios y reportar solo resultados. La revisión independiente de la Fase 5 corrió como subagente aparte (con un modelo Opus).
+**Claude Code (app de escritorio)**, con el modelo **Claude Sonnet 5.5** (`claude-sonnet-5-5`) en la sesión de desarrollo. El desarrollo se hizo con **prompts por fases preparados aparte** (no están en este repositorio), con instrucciones de ahorro de tokens: respuestas cortas, no releer archivos innecesarios y reportar solo resultados. La revisión independiente de la Fase 5 corrió como subagente aparte (con un modelo Opus). La prueba del harness en uso real (sección 6) se hizo después en una sesión aparte, también con Claude Sonnet 5.5.
 
 ## 5. Estrategia paso a paso
 
@@ -116,7 +116,7 @@ Lo que más me sorprendió, en mis palabras: *"Que los controles automáticos en
 | Hook de pre-push (`PreToolUse`, `claude-pre-push.sh` → `pre-push-check.sh`) | Si el comando es un `git push` (también `git -C . push`, `-c`, ruta completa, `bash -c`, alias) corre `./mvnw verify -Psecurity` y bloquea con exit 2 si algo falla | Con formato roto devolvió exit 2 y con el código limpio pasó; 14 casos de detección de push |
 | Hook de git (`.githooks/pre-push`) | Llama al mismo script para pushes hechos a mano | Devolvió exit 2 con formato roto |
 | 3 skills (`.claude/skills/`) | `new-endpoint` (contract-first y pruebas desde los criterios), `problem-details` (errores RFC 9457 con plantillas seguras) y `coverage-check` (clases bajo 90%) | `coverage-check` se invocó como skill en una sesión de prueba: `verify` pasó y solo `ProblemExceptionHandler` quedó bajo 90% (ramas 75%, líneas 100%). `new-endpoint` y `problem-details` siguen **sin ejercitarse** |
-| Subagente `code-reviewer` (`.claude/agents/`) | Solo lectura (`Read`, `Grep`, `Glob` y Bash limitado a `mvnw`); revisa estilo, diseño, concurrencia, validación, datos sensibles, Commons Text, CVE y que las pruebas cubran los criterios. Devuelve hallazgos priorizados | Se ejecutó sobre todo el repo (Fase 5, como subagente general) y, en una sesión de prueba, ya **registrado** como `code-reviewer` sobre el último commit: sin hallazgos críticos ni altos; 3 medios (el `deny` solo cubre el prefijo literal de `git push`; el texto de "tres capas" sobrevende las capas 2 y 3; la afirmación del job `docker` en verde no estaba verificada) |
+| Subagente `code-reviewer` (`.claude/agents/`) | Solo lectura (`Read`, `Grep`, `Glob` y Bash limitado a `mvnw`); revisa estilo, diseño, concurrencia, validación, datos sensibles, Commons Text, CVE y que las pruebas cubran los criterios. Devuelve hallazgos priorizados | Se ejecutó sobre todo el repo (Fase 5, como subagente general) y, en una sesión de prueba, ya **registrado** como `code-reviewer` sobre el último commit: sin hallazgos críticos ni altos; 3 medios (el `deny` solo cubre el prefijo literal de `git push`; el texto de "tres capas" sobrevende las capas 2 y 3; la afirmación del job `docker` en verde el revisor no pudo verificarla; la verifiqué yo después en Actions) |
 
 Notas de la sesión de prueba:
 - Intento real de `git push` desde el agente: **bloqueado por la capa 1** (`deny` de `settings.json`, antes de ejecutar nada). Los hooks de las capas 2 y 3 no llegaron a correr en ese intento.
@@ -146,7 +146,7 @@ Notas de la sesión de prueba:
 ## 9. Pruebas y calidad
 
 - **106 pruebas** unitarias, **100% de cobertura de líneas y 93.8% de ramas** (JaCoCo exige >= 90% en `verify`). Sin Spring ni base de datos: dominio y aplicación puros, controllers con MockMvc y casos de uso simulados, persistencia con `JdbcClient` simulado, concurrencia (AC-16) con un adaptador en memoria y 50 hilos.
-- **Sin pruebas de integración en el proyecto**, por requerimiento. Lo que habría cubierto una (SQL real, Flyway, arranque del contexto) se verifica en el **smoke test del job `docker` de CI**, contra PostgreSQL real: flujo completo con los códigos HTTP de cada criterio, 30 validaciones simultáneas sobre el mismo canal (la suma aprobada nunca supera el diario; deben ser exactamente 10 de 100 con límite 1,000), AC-06, AC-07, AC-14, montos y `accountId` inválidos, `traceId` en los errores y trazas en Jaeger. El job `docker` de CI pasó en verde con estos pasos.
+- **Sin pruebas de integración en el proyecto**, por requerimiento. Lo que habría cubierto una (SQL real, Flyway, arranque del contexto) se verifica en el **smoke test del job `docker` de CI**, contra PostgreSQL real: flujo completo con los códigos HTTP de cada criterio, 30 validaciones simultáneas sobre el mismo canal (la suma aprobada nunca supera el diario; deben ser exactamente 10 de 100 con límite 1,000), AC-06, AC-07, AC-14, montos y `accountId` inválidos, `traceId` en los errores y trazas en Jaeger. El job `docker` de CI pasó en verde con estos pasos (verificado por mí; evidencia en el [historial de Actions](https://github.com/DiegoArmandoPinzonDiaz/ms-transfer-limits/actions)).
 
 ## 10. Limitaciones conocidas
 

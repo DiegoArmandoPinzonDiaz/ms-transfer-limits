@@ -3,7 +3,7 @@ name: coverage-check
 description: Correr JaCoCo y listar las clases con cobertura bajo 90%.
 ---
 
-1. `./mvnw verify` (genera `target/site/jacoco/jacoco.csv`; si falla por cobertura, igual queda el reporte).
+1. `source .claude/hooks/env.sh && ./mvnw verify` (env.sh resuelve JDK 27, igual que los hooks; genera `target/site/jacoco/jacoco.csv`; si falla por cobertura, igual queda el reporte).
 2. Lista las clases bajo 90% de líneas o ramas:
 ```bash
 awk -F, 'NR>1{ l=$8+$9; b=$6+$7; lc=(l? $9/l:1); bc=(b? $7/b:1);
