@@ -13,12 +13,21 @@ services:
       timeout: 3s
       retries: 10
 
+  # Jaeger v2 all-in-one: recibe OTLP (gRPC 4317, HTTP 4318). UI: http://localhost:16686
+  jaeger:
+    image: jaegertracing/jaeger:2.23.0
+    ports:
+      - "16686:16686"
+
   app:
     build: .
     depends_on:
       postgres:
         condition: service_healthy
+      jaeger:
+        condition: service_started
     environment:
+      OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}

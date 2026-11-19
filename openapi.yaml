@@ -231,6 +231,9 @@ components:
         availableAmount:
           type: number
           description: Solo con DAILY_LIMIT_EXCEEDED.
+        traceId:
+          type: string
+          description: Id de traza (OpenTelemetry) para que soporte rastree el error.
     ProblemDetails:
       type: object
       description: Error segun RFC 9457.
@@ -247,6 +250,9 @@ components:
           type: string
         instance:
           type: string
+        traceId:
+          type: string
+          description: Id de traza (OpenTelemetry) para que soporte rastree el error.
   responses:
     BadRequest:
       description: Peticion invalida (monto, canal o limites invalidos).

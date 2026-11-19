@@ -4,6 +4,8 @@ import com.lab.transferlimits.application.LimitsNotFoundException;
 import com.lab.transferlimits.domain.InvalidRequestException;
 import com.lab.transferlimits.domain.RejectionReason;
 import com.lab.transferlimits.domain.ValidationResult.Rejected;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
 import java.net.URI;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -110,6 +112,31 @@ public class ProblemExceptionHandler extends ResponseEntityExceptionHandler {
     ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
     problem.setType(URI.create(TYPE_BASE + slug));
     problem.setTitle(title);
+    return withTraceId(problem);
+  }
+
+  /** Agrega traceId (extension RFC 9457) para que soporte rastree el error sin exponer detalles. */
+  private static ProblemDetail withTraceId(ProblemDetail problem) {
+    SpanContext context = Span.current().getSpanContext();
+    if (context.isValid()) {
+      problem.setProperty("traceId", context.getTraceId());
+    }
     return problem;
+  }
+
+  /** Errores estandar de Spring MVC (405, 415, ...) tambien llevan traceId. */
+  @Override
+  protected ResponseEntity<Object> handleExceptionInternal(
+      Exception ex,
+      Object body,
+      HttpHeaders headers,
+      HttpStatusCode statusCode,
+      WebRequest request) {
+    ResponseEntity<Object> response =
+        super.handleExceptionInternal(ex, body, headers, statusCode, request);
+    if (response != null && response.getBody() instanceof ProblemDetail problem) {
+      withTraceId(problem);
+    }
+    return response;
   }
 }

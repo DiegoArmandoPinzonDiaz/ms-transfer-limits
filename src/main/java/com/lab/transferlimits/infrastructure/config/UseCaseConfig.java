@@ -8,6 +8,8 @@ import com.lab.transferlimits.application.port.out.LimitsRepositoryPort;
 import com.lab.transferlimits.application.service.GetLimitsService;
 import com.lab.transferlimits.application.service.UpdateLimitService;
 import com.lab.transferlimits.application.service.ValidateTransferService;
+import com.lab.transferlimits.infrastructure.observability.TracedValidateTransferUseCase;
+import io.opentelemetry.api.OpenTelemetry;
 import java.time.Clock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,7 +34,9 @@ public class UseCaseConfig {
   }
 
   @Bean
-  ValidateTransferUseCase validateTransferUseCase(LimitsRepositoryPort repository, Clock clock) {
-    return new ValidateTransferService(repository, clock);
+  ValidateTransferUseCase validateTransferUseCase(
+      LimitsRepositoryPort repository, Clock clock, OpenTelemetry openTelemetry) {
+    return new TracedValidateTransferUseCase(
+        new ValidateTransferService(repository, clock), openTelemetry);
   }
 }

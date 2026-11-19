@@ -14,3 +14,18 @@ management:
   tracing:
     sampling:
       probability: 1.0
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+          transport: http
+  otlp:
+    metrics:
+      export:
+        enabled: false
+
+logging:
+  pattern:
+    # traceId y spanId en cada linea de log; nunca se loguean accountId ni montos.
+    correlation: "[${spring.application.name:},%X{traceId:-},%X{spanId:-}] "

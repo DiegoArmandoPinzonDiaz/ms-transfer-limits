@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Supresiones INDIVIDUALES (un CVE + un artefacto con version exacta). Ninguna por grupo ni por CPE
+  amplia. Si cambia la version del artefacto, el hallazgo reaparece y se vuelve a revisar.
+  Todas son falsos positivos: la CPE generica opentelemetry:opentelemetry coincide con CVEs de otros
+  lenguajes (JS, Go, .NET, C++) y no con el SDK de Java. Revisado el 2026-11-19. CVSS 5.3 (< 7).
+-->
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+  <suppress>
+    <notes><![CDATA[Falso positivo (2026-11-19): CVE-2026-54285 es de opentelemetry-js (@opentelemetry/core), no del API de Java.]]></notes>
+    <packageUrl regex="false">pkg:maven/io.opentelemetry/opentelemetry-api@1.62.0</packageUrl>
+    <cve>CVE-2026-54285</cve>
+  </suppress>
+  <suppress>
+    <notes><![CDATA[Falso positivo (2026-11-19): CVE-2026-39882 es de opentelemetry-go (exportadores OTLP HTTP de Go), no de opentelemetry-proto (definiciones Java).]]></notes>
+    <packageUrl regex="false">pkg:maven/io.opentelemetry.proto/opentelemetry-proto@1.10.0-alpha</packageUrl>
+    <cve>CVE-2026-39882</cve>
+  </suppress>
+  <suppress>
+    <notes><![CDATA[Falso positivo (2026-11-19): CVE-2026-41178 es de opentelemetry-go (Parse de baggage en Go), no de opentelemetry-proto.]]></notes>
+    <packageUrl regex="false">pkg:maven/io.opentelemetry.proto/opentelemetry-proto@1.10.0-alpha</packageUrl>
+    <cve>CVE-2026-41178</cve>
+  </suppress>
+  <suppress>
+    <notes><![CDATA[Falso positivo (2026-11-19): CVE-2026-40894 es de opentelemetry-dotnet (NuGet OpenTelemetry.Api), no de opentelemetry-proto.]]></notes>
+    <packageUrl regex="false">pkg:maven/io.opentelemetry.proto/opentelemetry-proto@1.10.0-alpha</packageUrl>
+    <cve>CVE-2026-40894</cve>
+  </suppress>
+  <suppress>
+    <notes><![CDATA[Falso positivo (2026-11-19): CVE-2026-44967 es de opentelemetry-cpp (exportadores OTLP HTTP de C++), no de opentelemetry-proto.]]></notes>
+    <packageUrl regex="false">pkg:maven/io.opentelemetry.proto/opentelemetry-proto@1.10.0-alpha</packageUrl>
+    <cve>CVE-2026-44967</cve>
+  </suppress>
+</suppressions>

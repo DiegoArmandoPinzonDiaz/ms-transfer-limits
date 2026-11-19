@@ -43,6 +43,18 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-opentelemetry</artifactId>
+      <exclusions>
+        <!-- Sin OkHttp (ni kotlin-stdlib, CVE-2026-53914): el exportador OTLP usa el HttpClient del JDK. -->
+        <exclusion>
+          <groupId>io.opentelemetry</groupId>
+          <artifactId>opentelemetry-exporter-sender-okhttp</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-exporter-sender-jdk</artifactId>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -71,6 +83,11 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-sdk-testing</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -227,4 +244,64 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <!-- La llave de NVD se toma solo de la variable de entorno NVD_API_KEY (nunca en codigo). -->
+    <profile>
+      <id>nvd-api-key</id>
+      <activation>
+        <property>
+          <name>env.NVD_API_KEY</name>
+        </property>
+      </activation>
+      <properties>
+        <nvdApiKey>${env.NVD_API_KEY}</nvdApiKey>
+        <nvdApiDelay>6000</nvdApiDelay>
+        <nvdMaxRetryCount>40</nvdMaxRetryCount>
+      </properties>
+    </profile>
+
+    <!-- Sin llave NVD limita 429: espera mas entre llamadas (lento, pero funciona). -->
+    <profile>
+      <id>nvd-no-key</id>
+      <activation>
+        <property>
+          <name>!env.NVD_API_KEY</name>
+        </property>
+      </activation>
+      <properties>
+        <nvdApiDelay>12000</nvdApiDelay>
+        <nvdMaxRetryCount>40</nvdMaxRetryCount>
+      </properties>
+    </profile>
+
+    <!-- ./mvnw verify -Psecurity: escaneo de CVE; falla con CVSS >= 7. Requiere red. -->
+    <profile>
+      <id>security</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.owasp</groupId>
+            <artifactId>dependency-check-maven</artifactId>
+            <version>12.2.2</version>
+            <configuration>
+              <failBuildOnCVSS>7</failBuildOnCVSS>
+              <skipTestScope>true</skipTestScope>
+              <suppressionFiles>
+                <suppressionFile>${project.basedir}/dependency-check-suppressions.xml</suppressionFile>
+              </suppressionFiles>
+            </configuration>
+            <executions>
+              <execution>
+                <id>dependency-check</id>
+                <goals>
+                  <goal>check</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

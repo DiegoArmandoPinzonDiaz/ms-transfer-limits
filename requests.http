@@ -41,5 +41,8 @@ Content-Type: application/json
 
 { "channel": "MOBILE", "amount": 300.00 }
 
-### 6. Salud
+### 6. Cuenta inexistente: 404 problem+json con traceId (AC-10)
+GET {{base}}/api/v1/accounts/ACC-NO-EXISTE/limits
+
+### 7. Salud
 GET {{base}}/actuator/health
