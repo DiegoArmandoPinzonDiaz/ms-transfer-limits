@@ -3,3 +3,5 @@
 .githooks/* text eol=lf
 mvnw text eol=lf
 *.cmd text eol=crlf
+Dockerfile text eol=lf
+.mvn/wrapper/maven-wrapper.properties text eol=lf
