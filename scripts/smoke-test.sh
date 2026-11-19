@@ -101,19 +101,18 @@ printf '%s\n%s\n' "$TRACE_ID" "${NOT_FOUND_TRACE:-}" > /tmp/smoke-last-trace-id 
 JOUT=""
 fail_j() { echo "FAIL $1"; echo "     Jaeger respondio: ${JOUT:0:600}"; FAILS=$((FAILS + 1)); }
 
-SERVICES=""; TRACE_JSON=""
+TRACE_JSON=""
 for _ in $(seq 1 15); do
-  SERVICES=$(curl -s -m 10 "$JAEGER/api/services")
   [ -n "$TRACE_ID" ] && TRACE_JSON=$(curl -s -m 10 "$JAEGER/api/traces/$TRACE_ID")
-  if echo "$SERVICES" | grep -q 'ms-transfer-limits' && echo "$TRACE_JSON" | grep -q '"operationName":"transfer.validate"'; then break; fi
+  if echo "$TRACE_JSON" | grep -q '"operationName":"transfer.validate"'; then break; fi
   sleep 2
 done
 ACTUAL=$(echo "$TRACE_JSON" | grep -oE '"serviceName":"[^"]*"' | sort -u | tr '\n' ' ')
 echo "info servicio(s) dentro de la traza $TRACE_ID: ${ACTUAL:-<ninguno>}"
 
-JOUT=$SERVICES
-if echo "$SERVICES" | grep -q 'ms-transfer-limits'; then echo "ok   Jaeger tiene el servicio ms-transfer-limits"
-else fail_j "Jaeger no tiene el servicio ms-transfer-limits (servicio en la traza: ${ACTUAL:-ninguno})"; fi
+JOUT=$TRACE_JSON
+if echo "$ACTUAL" | grep -qF '"serviceName":"ms-transfer-limits"'; then echo "ok   el servicio de la traza es ms-transfer-limits"
+else fail_j "el servicio de la traza no es ms-transfer-limits (servicio en la traza: ${ACTUAL:-ninguno})"; fi
 
 JOUT=$TRACE_JSON
 if echo "$TRACE_JSON" | grep -q "\"traceID\":\"$TRACE_ID\""; then echo "ok   el traceId del problem+json ($TRACE_ID) existe en Jaeger"
@@ -133,11 +132,15 @@ else fail_j "no se ve la cuenta enmascarada ****${ACCOUNT: -4} en la traza"; fi
 if echo "$TRACE_JSON" | grep -qF "$ACCOUNT"; then fail_j "el accountId COMPLETO aparece en la traza"
 else echo "ok   el accountId completo no aparece en la traza"; fi
 
-# Busqueda por servicio (API interna, informativa: no hace fallar el smoke test)
-NOW=$(date +%s)
-JOUT=$(curl -s -m 10 "$JAEGER/api/traces?service=ms-transfer-limits&limit=20&start=$(( (NOW - 3600) * 1000000 ))&end=$(( (NOW + 60) * 1000000 ))")
-if echo "$JOUT" | grep -q "\"traceID\":\"$TRACE_ID\""; then echo "ok   la busqueda por servicio devuelve la traza"
-else echo "WARN la busqueda por servicio no devolvio la traza: ${JOUT:0:200}"; fi
+# API v3 de Jaeger 2.x (listado de servicios y busqueda): solo informativa, nunca hace fallar el smoke test
+JOUT=$(curl -s -m 10 "$JAEGER/api/v3/services")
+if echo "$JOUT" | grep -q 'ms-transfer-limits'; then echo "ok   /api/v3/services lista ms-transfer-limits"
+else echo "WARN /api/v3/services no lista ms-transfer-limits: ${JOUT:0:200}"; fi
+T0=$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-1H +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)
+T1=$(date -u -d '5 minutes' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v+5M +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)
+JOUT=$(curl -s -m 10 "$JAEGER/api/v3/traces?query.service_name=ms-transfer-limits&query.start_time_min=$T0&query.start_time_max=$T1&query.num_traces=20")
+if echo "$JOUT" | grep -qi "$TRACE_ID"; then echo "ok   /api/v3/traces devuelve la traza"
+else echo "WARN /api/v3/traces no devolvio la traza: ${JOUT:0:200}"; fi
 
 echo
 if [ "$FAILS" -ne 0 ]; then echo "SMOKE TEST FALLO: $FAILS verificaciones"; exit 1; fi
